@@ -8,9 +8,7 @@
         mc:Ignorable="d"
         Title="Weekly Chart Check" Height="650" Width="1200">
     <Window.Resources>
-        <ResourceDictionary>
             <converters:PassColorConverter x:Key="localPassColorConverter"/>
-        </ResourceDictionary>
     </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
@@ -33,12 +31,12 @@
                   ItemsSource="{Binding Appointments}"
                   AutoGenerateColumns="False"
                   IsReadOnly="True"
-                  AlternatingRowBackground="LightGray"
                   GridLinesVisibility="All"
                   HeadersVisibility="Column">
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow">
                     <Setter Property="Background" Value="{Binding Pass,Converter={StaticResource localPassColorConverter}}"/>
+                    <Setter Property="ToolTip" Value="{Binding PassMessage}"/>
                 </Style>
             </DataGrid.RowStyle>
             <DataGrid.Columns>
@@ -61,12 +59,12 @@
                   ItemsSource="{Binding Documents}"
                   AutoGenerateColumns="False"
                   IsReadOnly="True"
-                  AlternatingRowBackground="LightGray"
                   GridLinesVisibility="All"
                   HeadersVisibility="Column">
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow">
                     <Setter Property="Background" Value="{Binding Pass,Converter={StaticResource localPassColorConverter}}"/>
+                    <Setter Property="ToolTip" Value="{Binding PassMessage}"/>
                 </Style>
             </DataGrid.RowStyle>
             <DataGrid.Columns>

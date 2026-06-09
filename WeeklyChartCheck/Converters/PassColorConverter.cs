@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Data;
+using System.Windows.Media;
 
 namespace WeeklyChartCheck.Converters
 {
@@ -15,7 +15,7 @@ namespace WeeklyChartCheck.Converters
         {
             if(value is bool boolValue)
             {
-                return boolValue ? Brushes.Green: Brushes.Pink;
+                return boolValue ? Brushes.LightGreen: Brushes.Pink;
             }
             return Brushes.Transparent;
         }

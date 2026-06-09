@@ -395,11 +395,23 @@ namespace WeeklyChartCheck.Services
                             }
                         }
                     }
+                    appointment.Pass = true;
+                    if (!String.IsNullOrEmpty(appointment.StartTime))
+                    {
 
+                        DateTime startTime;
+                        if (DateTime.TryParse(appointment.StartTime, out startTime))
+                        {
+                            if(DateTime.Now > startTime.AddHours(12) && appointment.AppointmentStatus == "Open")
+                            {
+                                appointment.Pass = false;
+                                appointment.PassMessage = "Appointment cannot be open after 12 hours past start time";
+                            }
+                        }
+                    }
                     appointments.Add(appointment);
                 }
             }
-
             Console.WriteLine($"Found {appointments.Count} appointments");
             return appointments;
         }
