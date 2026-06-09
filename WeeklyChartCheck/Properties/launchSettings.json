@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "WeeklyChartCheck": {
+      "commandName": "Project",
+      "commandLineArgs": "\"RapidPlan-01\""
+    }
+  }
+}
