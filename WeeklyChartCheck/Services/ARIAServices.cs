@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Media;
 using WeeklyChartCheck.Models;
 
 namespace WeeklyChartCheck.Services
@@ -58,151 +59,168 @@ namespace WeeklyChartCheck.Services
 
             string url = $"{baseUrl}/DocumentReference?patient={patientId}&_pretty=true";
             Console.WriteLine($"Requesting documents for patient: {patientId}");
-
-            var response = _client.GetAsync(url);
-            var result = response.Result.Content.ReadAsStringAsync().Result;
-
-            var bundle = JObject.Parse(result);
-
-            if (bundle["entry"] != null)
+            while (!String.IsNullOrEmpty(url))
             {
-                foreach (var entry in bundle["entry"])
+
+                var response = _client.GetAsync(url);
+                var result = response.Result.Content.ReadAsStringAsync().Result;
+
+                var bundle = JObject.Parse(result);
+
+                if (bundle["entry"] != null)
                 {
-                    var resource = entry["resource"];
-                    var document = new DocumentModel();
-
-                    document.PatientId = patientId;
-                    document.ApprovalStatus = resource["docStatus"]?.ToString();
-
-                    if (resource["type"] != null)
+                    foreach (var entry in bundle["entry"])
                     {
-                        if (resource["type"]["coding"] != null && resource["type"]["coding"].Any())
+                        var resource = entry["resource"];
+                        var document = new DocumentModel();
+
+                        document.PatientId = patientId;
+                        document.ApprovalStatus = resource["docStatus"]?.ToString();
+
+                        if (resource["type"] != null)
                         {
-                            string documentTypeCode = resource["type"]["coding"][0]["code"]?.ToString();
-                            if (!string.IsNullOrEmpty(documentTypeCode) && documentTypeMapping.ContainsKey(documentTypeCode))
+                            if (resource["type"]["coding"] != null && resource["type"]["coding"].Any())
                             {
-                                document.DocumentType = documentTypeMapping[documentTypeCode];
-                            }
-                            else
-                            {
-                                document.DocumentType = resource["type"]["coding"][0]["display"]?.ToString();
-                            }
-                        }
-                    }
-
-                    if (resource["category"] != null && resource["category"].Any())
-                    {
-                        var category = resource["category"][0];
-                        if (category["coding"] != null && category["coding"].Any())
-                        {
-                            document.DocumentTemplate = category["coding"][0]["display"]?.ToString();
-                        }
-                    }
-
-                    if (resource["author"] != null && resource["author"].Any())
-                    {
-                        string authorRef = resource["author"][0]["reference"]?.ToString();
-                        if (!string.IsNullOrEmpty(authorRef) && authorRef.StartsWith("Practitioner/"))
-                        {
-                            string fhirId = authorRef.Substring("Practitioner/".Length);
-                            document.Author = GetClientValueFromFHIRId("Practitioner", fhirId);
-                        }
-                    }
-
-                    if (resource["extension"] != null)
-                    {
-                        foreach (var extension in resource["extension"])
-                        {
-                            string extensionUrl = extension["url"]?.ToString();
-
-                            if (extensionUrl != null && extensionUrl.Contains("supervisor"))
-                            {
-                                var supervisorRef = extension["valueReference"];
-                                if (supervisorRef != null)
+                                string documentTypeCode = resource["type"]["coding"][0]["code"]?.ToString();
+                                if (!string.IsNullOrEmpty(documentTypeCode) && documentTypeMapping.ContainsKey(documentTypeCode))
                                 {
-                                    string reference = supervisorRef["reference"]?.ToString();
-                                    if (!string.IsNullOrEmpty(reference) && reference.StartsWith("Practitioner/"))
-                                    {
-                                        string fhirId = reference.Substring("Practitioner/".Length);
-                                        document.SupervisedBy = GetClientValueFromFHIRId("Practitioner", fhirId);
-                                    }
+                                    document.DocumentType = documentTypeMapping[documentTypeCode];
+                                }
+                                else
+                                {
+                                    document.DocumentType = resource["type"]["coding"][0]["display"]?.ToString();
                                 }
                             }
-                            else if (extensionUrl != null && extensionUrl.Contains("signature"))
+                        }
+
+                        if (resource["category"] != null && resource["category"].Any())
+                        {
+                            var category = resource["category"][0];
+                            if (category["coding"] != null && category["coding"].Any())
                             {
-                                var signerRef = extension["extension"]?.FirstOrDefault(e => e["url"].ToString().Contains("signer"));
-                                if (signerRef != null)
+                                document.DocumentTemplate = category["coding"][0]["display"]?.ToString();
+                            }
+                        }
+
+                        if (resource["author"] != null && resource["author"].Any())
+                        {
+                            string authorRef = resource["author"][0]["reference"]?.ToString();
+                            if (!string.IsNullOrEmpty(authorRef) && authorRef.StartsWith("Practitioner/"))
+                            {
+                                string fhirId = authorRef.Substring("Practitioner/".Length);
+                                document.Author = GetClientValueFromFHIRId("Practitioner", fhirId);
+                            }
+                        }
+
+                        if (resource["extension"] != null)
+                        {
+                            foreach (var extension in resource["extension"])
+                            {
+                                string extensionUrl = extension["url"]?.ToString();
+
+                                if (extensionUrl != null && extensionUrl.Contains("supervisor"))
                                 {
-                                    string reference = signerRef["valueReference"]?["display"]?.ToString();
-                                    if (!string.IsNullOrEmpty(reference) && reference.StartsWith("Practitioner/"))
+                                    var supervisorRef = extension["valueReference"];
+                                    if (supervisorRef != null)
                                     {
-                                        string fhirId = reference.Substring("Practitioner/".Length);
-                                        document.SignedBy = GetClientValueFromFHIRId("Practitioner", fhirId);
+                                        string reference = supervisorRef["reference"]?.ToString();
+                                        if (!string.IsNullOrEmpty(reference) && reference.StartsWith("Practitioner/"))
+                                        {
+                                            string fhirId = reference.Substring("Practitioner/".Length);
+                                            document.SupervisedBy = GetClientValueFromFHIRId("Practitioner", fhirId);
+                                        }
                                     }
-                                    else { document.SignedBy = reference; }
+                                }
+                                else if (extensionUrl != null && extensionUrl.Contains("signature"))
+                                {
+                                    var signerRef = extension["extension"]?.FirstOrDefault(e => e["url"].ToString().Contains("signer"));
+                                    if (signerRef != null)
+                                    {
+                                        string reference = signerRef["valueReference"]?["display"]?.ToString();
+                                        if (!string.IsNullOrEmpty(reference) && reference.StartsWith("Practitioner/"))
+                                        {
+                                            string fhirId = reference.Substring("Practitioner/".Length);
+                                            document.SignedBy = GetClientValueFromFHIRId("Practitioner", fhirId);
+                                        }
+                                        else { document.SignedBy = reference; }
+                                    }
+                                }
+                                else if (extensionUrl != null && extensionUrl.Contains("approvedBy"))
+                                {
+                                    var approverRef = extension["valueReference"];
+                                    if (approverRef != null)
+                                    {
+                                        string reference = approverRef["reference"]?.ToString();
+                                        if (!string.IsNullOrEmpty(reference) && reference.StartsWith("Practitioner/"))
+                                        {
+                                            string fhirId = reference.Substring("Practitioner/".Length);
+                                            document.ApprovedBy = GetClientValueFromFHIRId("Practitioner", fhirId);
+                                        }
+                                    }
+                                }
+                                else if (extensionUrl != null && extensionUrl.Contains("authenticated"))
+                                {
+                                    document.ApprovalDate = extension["valueDateTime"]?.ToString();
                                 }
                             }
-                            else if (extensionUrl != null && extensionUrl.Contains("approvedBy"))
+                        }
+                        //if (resource["authenticated"] != null)
+                        //{
+                        //    document.ApprovalDate = resource["authenticated"]?.ToString();
+                        //}
+
+
+
+                        if (resource["authenticator"] != null)
+                        {
+                            string authenticatorRef = resource["authenticator"]["reference"]?.ToString();
+                            if (!string.IsNullOrEmpty(authenticatorRef) && authenticatorRef.StartsWith("Practitioner/"))
                             {
-                                var approverRef = extension["valueReference"];
-                                if (approverRef != null)
+                                string fhirId = authenticatorRef.Substring("Practitioner/".Length);
+                                if (string.IsNullOrEmpty(document.ApprovedBy))
                                 {
-                                    string reference = approverRef["reference"]?.ToString();
-                                    if (!string.IsNullOrEmpty(reference) && reference.StartsWith("Practitioner/"))
-                                    {
-                                        string fhirId = reference.Substring("Practitioner/".Length);
-                                        document.ApprovedBy = GetClientValueFromFHIRId("Practitioner", fhirId);
-                                    }
+                                    document.ApprovedBy = GetClientValueFromFHIRId("Practitioner", fhirId);
                                 }
                             }
-                            else if (extensionUrl != null && extensionUrl.Contains("authenticated"))
-                            {
-                                document.ApprovalDate = extension["valueDateTime"]?.ToString();
-                            }
                         }
-                    }
-                    //if (resource["authenticated"] != null)
-                    //{
-                    //    document.ApprovalDate = resource["authenticated"]?.ToString();
-                    //}
-
-
-
-                    if (resource["authenticator"] != null)
-                    {
-                        string authenticatorRef = resource["authenticator"]["reference"]?.ToString();
-                        if (!string.IsNullOrEmpty(authenticatorRef) && authenticatorRef.StartsWith("Practitioner/"))
+                        if (resource["signature"] != null)
                         {
-                            string fhirId = authenticatorRef.Substring("Practitioner/".Length);
-                            if (string.IsNullOrEmpty(document.ApprovedBy))
+                            string signatureRef = resource["signature"]["reference"]?.ToString();
+                            if (!string.IsNullOrEmpty(signatureRef) && signatureRef.StartsWith("Practitioner/"))
                             {
-                                document.ApprovedBy = GetClientValueFromFHIRId("Practitioner", fhirId);
+                                string fhirId = signatureRef.Substring("Practitioner/".Length);
+                                if (string.IsNullOrEmpty(document.SignedBy))
+                                {
+                                    document.SignedBy = GetClientValueFromFHIRId("Practitioner", fhirId);
+                                }
                             }
                         }
-                    }
-                    if (resource["signature"] != null)
-                    {
-                        string signatureRef = resource["signature"]["reference"]?.ToString();
-                        if (!string.IsNullOrEmpty(signatureRef) && signatureRef.StartsWith("Practitioner/"))
+                        if (String.IsNullOrEmpty(document.ApprovalStatus) ||
+                            !document.ApprovalStatus.Equals("final", StringComparison.OrdinalIgnoreCase))
                         {
-                            string fhirId = signatureRef.Substring("Practitioner/".Length);
-                            if (string.IsNullOrEmpty(document.SignedBy))
-                            {
-                                document.SignedBy = GetClientValueFromFHIRId("Practitioner", fhirId);
-                            }
+                            document.Pass = false;
+                            document.PassMessage = "Document status is not approved (final)";
+                        }
+                        else
+                        {
+                            document.Pass = true;
+                        }
+                        documents.Add(document);
+                    }
+                }
+                url = null;
+                //prepare for nex page
+                var links = bundle["link"];
+                if (links != null)
+                {
+                    foreach (var link in links)
+                    {
+                        if (link["relation"]?.ToString() == "next")
+                        {
+                            url = link["url"]?.ToString();
+                            break;
                         }
                     }
-                    if(String.IsNullOrEmpty(document.ApprovalStatus) || 
-                        !document.ApprovalStatus.Equals("final", StringComparison.OrdinalIgnoreCase))
-                    {
-                        document.Pass = false;
-                        document.PassMessage = "Document status is not approved (final)";
-                    }
-                    else
-                    {
-                        document.Pass = true;
-                    }
-                    documents.Add(document);
                 }
             }
 
@@ -317,99 +335,117 @@ namespace WeeklyChartCheck.Services
             List<AppointmentModel> appointments = new List<AppointmentModel>();
 
             string url = $"{baseUrl}/Appointment?patient={patientId}&_pretty=true";
+            int pageCount = 0;
             Console.WriteLine($"Requesting appointments for patient: {patientId}");
-
-            var response = _client.GetAsync(url);
-            var result = response.Result.Content.ReadAsStringAsync().Result;
-
-            var bundle = JObject.Parse(result);
-
-            if (bundle["entry"] != null)
+            while (!String.IsNullOrEmpty(url))
             {
-                foreach (var entry in bundle["entry"])
+                pageCount++;
+                var response = _client.GetAsync(url);
+                var result = response.Result.Content.ReadAsStringAsync().Result;
+
+                var bundle = JObject.Parse(result);
+
+                if (bundle["entry"] != null)
                 {
-                    var resource = entry["resource"];
-                    var appointment = new AppointmentModel();
-
-                    appointment.StartTime = resource["start"]?.ToString();
-                    appointment.Comment = resource["comment"]?.ToString();
-
-                    if (resource["extension"] != null)
+                    foreach (var entry in bundle["entry"])
                     {
-                        foreach (var extension in resource["extension"])
+                        var resource = entry["resource"];
+                        var appointment = new AppointmentModel();
+
+                        appointment.StartTime = resource["start"]?.ToString();
+                        appointment.Comment = resource["comment"]?.ToString();
+
+                        if (resource["extension"] != null)
                         {
-                            string extensionUrl = extension["url"]?.ToString();
-                            if (extensionUrl != null && extensionUrl.Contains("appointment-ariaStatus"))
+                            foreach (var extension in resource["extension"])
                             {
-                                var valueCodeableConcept = extension["valueCodeableConcept"];
-                                if (valueCodeableConcept != null && valueCodeableConcept["coding"] != null && valueCodeableConcept["coding"].Any())
+                                string extensionUrl = extension["url"]?.ToString();
+                                if (extensionUrl != null && extensionUrl.Contains("appointment-ariaStatus"))
                                 {
-                                    appointment.AppointmentStatus = valueCodeableConcept["coding"][0]["display"]?.ToString();
-                                }
-                                break;
-                            }
-                        }
-                    }
-
-                    if (string.IsNullOrEmpty(appointment.AppointmentStatus))
-                    {
-                        appointment.AppointmentStatus = resource["status"]?.ToString();
-                    }
-
-                    if (resource["serviceType"] != null && resource["serviceType"].Any())
-                    {
-                        var serviceType = resource["serviceType"][0];
-                        if (serviceType["coding"] != null && serviceType["coding"].Any())
-                        {
-                            appointment.ActivityName = serviceType["coding"][0]["display"]?.ToString();
-                        }
-                    }
-
-                    if (resource["participant"] != null)
-                    {
-                        foreach (var participant in resource["participant"])
-                        {
-                            var actor = participant["actor"];
-                            if (actor != null)
-                            {
-                                string reference = actor["reference"]?.ToString();
-
-                                if (reference != null)
-                                {
-                                    if (reference.StartsWith("HealthcareService/"))
+                                    var valueCodeableConcept = extension["valueCodeableConcept"];
+                                    if (valueCodeableConcept != null && valueCodeableConcept["coding"] != null && valueCodeableConcept["coding"].Any())
                                     {
-                                        string fhirId = reference.Substring("HealthcareService/".Length);
-                                        appointment.Department = GetClientValueFromFHIRId("HealthcareService", fhirId);
+                                        appointment.AppointmentStatus = valueCodeableConcept["coding"][0]["display"]?.ToString();
                                     }
-                                    else if (reference.StartsWith("Device/"))
-                                    {
-                                        string fhirId = reference.Substring("Device/".Length);
-                                        appointment.TreatmentMachine = GetClientValueFromFHIRId("Device", fhirId);
-                                    }
-                                    else if (reference.StartsWith("Practitioner/"))
-                                    {
-                                        string fhirId = reference.Substring("Practitioner/".Length);
-                                        appointment.MD = GetClientValueFromFHIRId("Practitioner", fhirId);
-                                    }
+                                    break;
                                 }
                             }
                         }
-                    }
-                    appointment.Pass = true;
-                    if (!String.IsNullOrEmpty(appointment.StartTime))
-                    {
 
-                        DateTime startTime;
-                        if (DateTime.TryParse(appointment.StartTime, out startTime))
+                        if (string.IsNullOrEmpty(appointment.AppointmentStatus))
                         {
-                            if(DateTime.Now > startTime.AddHours(12) && appointment.AppointmentStatus == "Open")
+                            appointment.AppointmentStatus = resource["status"]?.ToString();
+                        }
+
+                        if (resource["serviceType"] != null && resource["serviceType"].Any())
+                        {
+                            var serviceType = resource["serviceType"][0];
+                            if (serviceType["coding"] != null && serviceType["coding"].Any())
                             {
-                                appointment.Pass = false;
-                                appointment.PassMessage = "Appointment cannot be open after 12 hours past start time";
+                                appointment.ActivityName = serviceType["coding"][0]["display"]?.ToString();
                             }
                         }
+
+                        if (resource["participant"] != null)
+                        {
+                            foreach (var participant in resource["participant"])
+                            {
+                                var actor = participant["actor"];
+                                if (actor != null)
+                                {
+                                    string reference = actor["reference"]?.ToString();
+
+                                    if (reference != null)
+                                    {
+                                        if (reference.StartsWith("HealthcareService/"))
+                                        {
+                                            string fhirId = reference.Substring("HealthcareService/".Length);
+                                            appointment.Department = GetClientValueFromFHIRId("HealthcareService", fhirId);
+                                        }
+                                        else if (reference.StartsWith("Device/"))
+                                        {
+                                            string fhirId = reference.Substring("Device/".Length);
+                                            appointment.TreatmentMachine = GetClientValueFromFHIRId("Device", fhirId);
+                                        }
+                                        else if (reference.StartsWith("Practitioner/"))
+                                        {
+                                            string fhirId = reference.Substring("Practitioner/".Length);
+                                            appointment.MD = GetClientValueFromFHIRId("Practitioner", fhirId);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        appointment.Pass = true;
+                        if (!String.IsNullOrEmpty(appointment.StartTime))
+                        {
+
+                            DateTime startTime;
+                            if (DateTime.TryParse(appointment.StartTime, out startTime))
+                            {
+                                if (DateTime.Now > startTime.AddHours(12) && appointment.AppointmentStatus == "Open")
+                                {
+                                    appointment.Pass = false;
+                                    appointment.PassMessage = "Appointment cannot be open after 12 hours past start time";
+                                }
+                            }
+                        }
+                        appointments.Add(appointment);
                     }
-                    appointments.Add(appointment);
+                }
+                url = null;
+                //prepare for nex page
+                var links = bundle["link"];
+                if (links != null)
+                {
+                    foreach (var link in links)
+                    {
+                        if (link["relation"]?.ToString() == "next")
+                        {
+                            url = link["url"]?.ToString();
+                            break;
+                        }
+                    }
                 }
             }
             Console.WriteLine($"Found {appointments.Count} appointments");
